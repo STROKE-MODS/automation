@@ -1,0 +1,38 @@
+name: YouTube Weekly Report
+
+on:
+  schedule:
+    - cron: '0 9 * * 0'  # Every Sunday at 9 AM IST
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  run-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run YouTube scraper
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python tools/scrape_youtube_trending.py 5 --ai --test
+
+      - name: Generate AI summary
+        run: python tools/generate_video_summary.py
+
+      - name: Format report
+        run: python tools/format_trending_report.py 5
+
+      - name: Send to Telegram
+        run: python tools/send_telegram_message.py

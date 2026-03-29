@@ -1,0 +1,16 @@
+{
+  "$schema": "https://railway.app/railway.json",
+  "build": {
+    "builder": "NIXPACKS_PYTHON_DEFAULT"
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyLimit": 5,
+    "cron": {
+      "command": "python tools/scrape_youtube_trending.py 5 --ai && python tools/generate_video_summary.py && python tools/format_trending_report.py 5 && python tools/send_telegram_message.py",
+      "timezone": "Asia/Kolkata",
+      "schedule": "0 9 * * 0"
+    }
+  }
+}
