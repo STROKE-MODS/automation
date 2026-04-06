@@ -129,7 +129,7 @@ def run_workflow(ai_mode=True, limit=5, skip_ai_filter=False):
         return False
 
     # Step 2: Scrape YouTube trending
-    cmd = f'python tools/scrape_youtube_trending.py {limit}'
+    cmd = f'python scripts/scrape_youtube_trending.py {limit}'
     if ai_mode:
         cmd += ' --ai'
     # Use test mode if YOUTUBE_API_KEY is not set or for safety
@@ -140,10 +140,10 @@ def run_workflow(ai_mode=True, limit=5, skip_ai_filter=False):
         return False
 
     # Step 3: Generate AI summary
-    if not run_step('python tools/generate_video_summary.py', "Generate AI Summary"):
+    if not run_step('python scripts/generate_video_summary.py', "Generate AI Summary"):
         logger.warning("AI summary generation failed, continuing...")
     # Step 4: Format report
-    if not run_step(f'python tools/format_trending_report.py {limit}', "Format Report"):
+    if not run_step(f'python scripts/format_trending_report.py {limit}', "Format Report"):
         return False
 
     # Step 5: Load and filter for new videos (duplicate prevention)
@@ -171,7 +171,7 @@ def run_workflow(ai_mode=True, limit=5, skip_ai_filter=False):
         return False
 
     # Step 6: Send via Telegram
-    if not run_step('python tools/send_telegram_message.py', "Send Telegram Message"):
+    if not run_step('python scripts/send_telegram_message.py', "Send Telegram Message"):
         return False
 
     # Step 7: Update sent history with only new unique hashes

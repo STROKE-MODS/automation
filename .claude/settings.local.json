@@ -12,7 +12,20 @@
       "Bash(gh auth:*)",
       "Bash(curl:*)",
       "Bash(gh repo:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(mkdir:*)",
+      "Bash(pytest tests/ -v)",
+      "Bash(pytest tests/ -v --tb=short)",
+      "Bash(mkdir -p src scripts examples)",
+      "Bash(mv tools/scrape_youtube_trending.py src/)",
+      "Bash(mv tools/generate_video_summary.py src/)",
+      "Bash(mv tools/format_trending_report.py src/)",
+      "Bash(mv tools/send_telegram_message.py src/)",
+      "Bash(mv src/scrape_youtube_trending.py scripts/)",
+      "Bash(mv src/generate_video_summary.py scripts/)",
+      "Bash(mv src/format_trending_report.py scripts/)",
+      "Bash(mv src/send_telegram_message.py scripts/)",
+      "Bash(mv src/telegram_analytics.py scripts/)"
     ]
   }
 }

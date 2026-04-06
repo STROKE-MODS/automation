@@ -125,7 +125,7 @@ def main():
         # Run analytics tracker
         import subprocess
         subprocess.run([
-            sys.executable, "tools/telegram_analytics.py", "--report",
+            sys.executable, "scripts/telegram_analytics.py", "--report",
             str(len(messages)), str(video_count)
         ], check=False)
     except Exception as e:
