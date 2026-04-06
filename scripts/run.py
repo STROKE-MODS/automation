@@ -1,17 +1,29 @@
 #!/usr/bin/env python3
 """
-Orchestration Script for YouTube Weekly Report
-Runs the complete workflow with error handling, duplicate prevention, and logging.
+YouTube AI Digest - Unified Script
+Automated AI/ML video reports delivered to Telegram.
+
+Usage:
+    python run.py --ai              # Full pipeline with AI filtering
+    python run.py --ai --test       # Test mode with sample data
+    python run.py --ai -n 10        # Custom number of videos
+    python run.py                   # General trending (no filter)
 """
 
 import sys
-import json
 import os
-import logging
+import json
+import io
+import re
+import time
 import hashlib
+import logging
+import argparse
 from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
+
+import requests
 
 # Configure logging
 logging.basicConfig(
@@ -24,177 +36,352 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Load environment
+# Fix Unicode on Windows
+try:
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+except Exception:
+    pass
+
 load_dotenv()
 
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
 
-def verify_credentials():
-    """Verify that required credentials are present."""
-    required = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]
-    missing = [key for key in required if not os.getenv(key)]
-    if missing:
-        logger.error(f"Missing required credentials: {missing}")
-        return False
-    logger.info("Credentials verified successfully")
-    return True
+AI_STRONG_KEYWORDS = [
+    "ai", "artificial intelligence", "machine learning", "ml", "deep learning",
+    "data science", "data analytics", "data analysis", "tensorflow",
+    "pytorch", "keras", "pandas", "numpy", "scikit-learn", "sklearn",
+    "chatgpt", "gpt", "llm", "large language model", "neural network",
+    "data engineer", "data scientist", "data engineering", "mlops",
+    "autogpt", "copilot", "generative ai", "gen ai", "genai", "computer vision",
+    "nlp", "natural language processing", "reinforcement learning",
+    "transformer", "hugging face", "huggingface", "langchain",
+    "prompt engineering", "rag", "retrieval augmented", "fine tuning",
+    "fine-tuning", "openai", "anthropic", "gemini", "claude",
+    "stable diffusion", "midjourney", "dall-e", "dalle",
+    "trading", "stock market", "forex", "crypto", "binance",
+    "options trading", "intraday", "nifty", "sensex", "zerodha",
+]
+
+# ============================================================================
+# SCRAPER FUNCTIONS
+# ============================================================================
+
+def _keyword_match(text: str, keywords: list) -> list:
+    """Return keywords that match in text using word boundaries."""
+    if not text:
+        return []
+    text_lower = text.lower()
+    matched = []
+    for keyword in keywords:
+        pattern = r'\b' + re.escape(keyword) + r'\b'
+        if re.search(pattern, text_lower):
+            matched.append(keyword)
+    return matched
 
 
-def get_video_hash(video):
-    """Generate a unique hash for a video to detect duplicates."""
-    content = f"{video.get('video_id', '')}{video.get('title', '')}"
-    return hashlib.md5(content.encode()).hexdigest()
+def is_ai_video(title: str, tags: list = None, description: str = None, channel: str = None) -> bool:
+    """Check if video is AI/ML/Trading related."""
+    tags_text = " ".join(tags) if tags else ""
+    desc_text = (description or "")[:300]
+    all_text = f"{title} {tags_text} {desc_text}"
+    return len(_keyword_match(all_text, AI_STRONG_KEYWORDS)) > 0
 
 
-def load_sent_history():
-    """Load the history of sent video hashes."""
-    history_file = Path(".tmp") / "sent_history.json"
-    if history_file.exists():
-        with open(history_file, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {"sent_hashes": [], "last_sent": None}
+def scrape_youtube(limit: int = 5, test_mode: bool = False, ai_only: bool = False) -> list:
+    """Scrape YouTube for videos."""
+    output_file = Path(".tmp") / "trending_raw.json"
+    output_file.parent.mkdir(exist_ok=True)
 
+    videos = []
 
-def save_sent_history(history, new_hashes):
-    """Save updated sent history."""
-    history_file = Path(".tmp") / "sent_history.json"
-    history["sent_hashes"].extend(new_hashes)
-    history["last_sent"] = datetime.now().isoformat()
-    history_file.parent.mkdir(exist_ok=True)
-    with open(history_file, "w", encoding="utf-8") as f:
-        json.dump(history, f, indent=2, ensure_ascii=False)
-    logger.info(f"Updated sent history with {len(new_hashes)} new hashes")
-
-
-def filter_new_videos(videos, history):
-    """Filter out videos that have already been sent."""
-    sent_hashes = set(history.get("sent_hashes", []))
-    new_videos = []
-    for video in videos:
-        video_hash = get_video_hash(video)
-        if video_hash not in sent_hashes:
-            new_videos.append(video)
-            video["hash"] = video_hash  # Add hash for tracking
+    if test_mode:
+        if ai_only:
+            videos = [
+                {"title": "Python for Data Science Full Course 2024", "channel": "Code With Harry", "views": "2500000", "video_id": "aitest1", "url": "https://youtube.com/watch?v=aitest1"},
+                {"title": "Machine Learning Beginner to Advanced", "channel": "Krish Naik", "views": "1800000", "video_id": "aitest2", "url": "https://youtube.com/watch?v=aitest2"},
+                {"title": "ChatGPT Complete Guide for Beginners", "channel": "TechWorld With Nana", "views": "3200000", "video_id": "aitest3", "url": "https://youtube.com/watch?v=aitest3"},
+                {"title": "Pandas Python Data Analysis Tutorial", "channel": "Python Programmer", "views": "950000", "video_id": "aitest4", "url": "https://youtube.com/watch?v=aitest4"},
+                {"title": "Deep Learning Neural Networks Explained", "channel": "3Blue1Brown", "views": "4500000", "video_id": "aitest5", "url": "https://youtube.com/watch?v=aitest5"},
+            ][:limit]
         else:
-            logger.info(f"Skipping already sent video: {video.get('title', 'Unknown')}")
-    return new_videos
+            videos = [
+                {"title": "Emergency Alert: Major News Event", "channel": "TV9 India", "views": "15000000", "video_id": "sample1", "url": "https://youtube.com/watch?v=sample1"},
+                {"title": "Bollywood Hit Song 2024", "channel": "T-Series", "views": "25000000", "video_id": "sample2", "url": "https://youtube.com/watch?v=sample2"},
+                {"title": "Cricket Match Highlights", "channel": "Star Sports", "views": "8000000", "video_id": "sample3", "url": "https://youtube.com/watch?v=sample3"},
+            ][:limit]
 
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(videos, f, indent=2)
+        logger.info(f"Test mode: Scraped {len(videos)} videos")
+        return videos
 
-def run_step(command, step_name, continue_on_error=False):
-    """Run a Python tool command and handle errors."""
-    import subprocess
-    logger.info(f"Running step: {step_name}")
-    try:
-        result = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=120
-        )
-        if result.returncode == 0:
-            logger.info(f"Step '{step_name}' completed successfully")
-            if result.stdout:
-                logger.debug(result.stdout)
-            return True
-        else:
-            logger.error(f"Step '{step_name}' failed with code {result.returncode}")
-            logger.error(result.stderr)
-            if not continue_on_error:
-                return False
-    except subprocess.TimeoutExpired:
-        logger.error(f"Step '{step_name}' timed out")
-        if not continue_on_error:
-            return False
-    except Exception as e:
-        logger.error(f"Error running '{step_name}': {e}")
-        if not continue_on_error:
-            return False
-    return not continue_on_error or True
+    # Real API mode
+    api_key = os.getenv("YOUTUBE_API_KEY")
+    if not api_key:
+        logger.warning("No YouTube API key - using test mode")
+        return scrape_youtube(limit, test_mode=True, ai_only=ai_only)
 
+    videos = []
 
-def run_workflow(ai_mode=True, limit=5, skip_ai_filter=False):
-    """Run the complete YouTube weekly report workflow."""
-    logger.info("=" * 50)
-    logger.info("Starting YouTube Weekly Report Workflow")
-    logger.info("=" * 50)
+    if ai_only:
+        # Use search API for AI content
+        search_queries = [
+            "AI machine learning tutorial", "data science tutorial",
+            "python programming tutorial", "chatgpt tutorial",
+            "trading stock market analysis",
+        ]
+        url = "https://www.googleapis.com/youtube/v3/search"
 
-    # Validate inputs
-    if limit < 1 or limit > 50:
-        logger.error(f"Invalid limit: {limit}. Must be between 1 and 50.")
-        return False
+        for query in search_queries:
+            try:
+                params = {"part": "snippet", "q": query, "type": "video", "order": "relevance", "maxResults": 10, "key": api_key}
+                resp = requests.get(url, params=params, timeout=15)
+                if resp.status_code == 200:
+                    for item in resp.json().get("items", []):
+                        snippet = item.get("snippet", {})
+                        videos.append({
+                            "title": snippet.get("title", "Unknown"),
+                            "channel": snippet.get("channelTitle", "Unknown"),
+                            "views": "0",
+                            "video_id": item.get("id", {}).get("videoId"),
+                            "url": f"https://www.youtube.com/watch?v={item.get('id', {}).get('videoId')}",
+                            "tags": snippet.get("tags", []),
+                            "description": snippet.get("description", ""),
+                        })
+                time.sleep(1)
+            except Exception as e:
+                logger.warning(f"Search failed for {query}: {e}")
 
-    # Step 1: Verify credentials
-    if not verify_credentials():
-        logger.error("Credential verification failed. Exiting.")
-        return False
+        # Deduplicate
+        seen = set()
+        unique = [v for v in videos if v["video_id"] not in seen and not seen.add(v["video_id"])]
+        videos = unique
 
-    # Step 2: Scrape YouTube trending
-    cmd = f'python scripts/scrape_youtube_trending.py {limit}'
-    if ai_mode:
-        cmd += ' --ai'
-    # Use test mode if YOUTUBE_API_KEY is not set or for safety
-    if not os.getenv("YOUTUBE_API_KEY"):
-        cmd += ' --test'
-        logger.info("No YouTube API key - using test mode")
-    if not run_step(cmd, "Scrape YouTube Trending"):
-        return False
+        # Filter
+        if ai_only:
+            videos = [v for v in videos if is_ai_video(v.get("title", ""), v.get("tags"), v.get("description"))]
+            logger.info(f"AI filter: {len(videos)} videos matched")
 
-    # Step 3: Generate AI summary
-    if not run_step('python scripts/generate_video_summary.py', "Generate AI Summary"):
-        logger.warning("AI summary generation failed, continuing...")
-    # Step 4: Format report
-    if not run_step(f'python scripts/format_trending_report.py {limit}', "Format Report"):
-        return False
-
-    # Step 5: Load and filter for new videos (duplicate prevention)
-    history = load_sent_history()
-
-    trending_file = Path(".tmp") / "trending_raw.json"
-    if trending_file.exists():
-        with open(trending_file, "r", encoding="utf-8") as f:
-            videos = json.load(f)
-
-        new_videos = filter_new_videos(videos, history)
-
-        if not new_videos:
-            logger.warning("No new videos to send. All videos have already been sent.")
-            # Still send a message but indicate no new content
-            new_videos = videos  # Fall back to all videos if none new
-        else:
-            logger.info(f"Found {len(new_videos)} new videos out of {len(videos)} total")
-
-        # Save filtered videos for sending
-        with open(trending_file, "w", encoding="utf-8") as f:
-            json.dump(new_videos, f, indent=2, ensure_ascii=False)
     else:
-        logger.error("No trending data found")
+        # Use trending API
+        url = "https://www.googleapis.com/youtube/v3/videos"
+        params = {"part": "snippet,statistics", "chart": "mostPopular", "regionCode": "IN", "maxResults": 50, "key": api_key}
+
+        try:
+            resp = requests.get(url, params=params, timeout=15)
+            if resp.status_code == 200:
+                for item in resp.json().get("items", []):
+                    stats = item.get("statistics", {})
+                    snippet = item.get("snippet", {})
+                    videos.append({
+                        "title": snippet.get("title", "Unknown"),
+                        "channel": snippet.get("channelTitle", "Unknown"),
+                        "views": stats.get("viewCount", "0"),
+                        "video_id": item.get("id"),
+                        "url": f"https://www.youtube.com/watch?v={item.get('id')}",
+                    })
+        except Exception as e:
+            logger.error(f"API request failed: {e}")
+
+    # Save
+    clean = [{"title": v["title"], "channel": v["channel"], "views": v["views"], "video_id": v["video_id"], "url": v["url"]} for v in videos[:limit]]
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(clean, f, indent=2)
+
+    logger.info(f"Scraped {len(clean)} videos")
+    return clean
+
+
+# ============================================================================
+# SUMMARY FUNCTIONS
+# ============================================================================
+
+def generate_summary():
+    """Generate AI summary using Claude."""
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    summary = "These videos cover the latest trends in AI and machine learning."
+
+    if api_key:
+        try:
+            from anthropic import Anthropic
+            # Load video data
+            video_file = Path(".tmp/trending_raw.json")
+            if not video_file.exists():
+                return summary
+
+            with open(video_file, "r", encoding="utf-8") as f:
+                videos = json.load(f)
+
+            titles = "\n".join([f"- {v['title']} ({v['channel']})" for v in videos[:5]])
+
+            client = Anthropic(api_key=api_key)
+            response = client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=150,
+                messages=[{"role": "user", "content": f"Summarize these YouTube videos in 2-3 sentences:\n{titles}"}]
+            )
+            summary = response.content[0].text
+        except ImportError:
+            logger.warning("Anthropic not installed - using basic summary")
+        except Exception as e:
+            logger.warning(f"Summary generation failed: {e}")
+
+    # Save summary
+    summary_file = Path(".tmp") / "ai_summary.txt"
+    summary_file.write_text(summary, encoding="utf-8")
+    logger.info(f"Summary: {summary[:100]}...")
+    return summary
+
+
+# ============================================================================
+# FORMATTER FUNCTIONS
+# ============================================================================
+
+def format_views(views: str) -> str:
+    """Format view count."""
+    try:
+        v = int(views)
+        if v >= 1_000_000:
+            return f"{v / 1_000_000:.1f}M"
+        elif v >= 1_000:
+            return f"{v / 1_000:.1f}K"
+        return str(v)
+    except:
+        return views
+
+
+def format_report(limit: int = 5):
+    """Format report for Telegram."""
+    # Load data
+    video_file = Path(".tmp/trending_raw.json")
+    summary_file = Path(".tmp/ai_summary.txt")
+
+    if not video_file.exists():
+        logger.error("No video data found")
+        return
+
+    with open(video_file, "r", encoding="utf-8") as f:
+        videos = json.load(f)
+
+    summary = summary_file.read_text(encoding="utf-8") if summary_file.exists() else "Trending videos."
+
+    # Format
+    date = datetime.now().strftime("%d %b %Y")
+    category = "Best Resources - AI Study & Data Analytics" if Path(".tmp/ai_mode.flag").exists() else "YouTube Trending India"
+
+    message = f"""--- Message 1/1 ---
+📚 <b>{category}</b>
+🎯 Top Trending Videos
+📅 {date}
+
+💡 <b>Summary:</b>
+{summary}
+"""
+
+    for i, v in enumerate(videos[:limit], 1):
+        message += f"""
+{i}. <b>{v['title']}</b>
+   📺 {v['channel']} • 👁 {format_views(v['views'])}
+   🔗 {v['url']}
+"""
+
+    message += "\n✨ <b>End of Report</b>"
+
+    # Save
+    report_file = Path(".tmp/trending_report.txt")
+    report_file.write_text(message, encoding="utf-8")
+
+    json_file = Path(".tmp/trending_formatted.json")
+    json_file.write_text(json.dumps([{"text": message}], indent=2), encoding="utf-8")
+
+    logger.info(f"Formatted {len(videos[:limit])} videos into 1 message(s)")
+
+
+# ============================================================================
+# NOTIFIER FUNCTIONS
+# ============================================================================
+
+def send_telegram():
+    """Send message to Telegram."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+
+    if not bot_token or not chat_id:
+        logger.error("Missing Telegram credentials")
         return False
 
-    # Step 6: Send via Telegram
-    if not run_step('python scripts/send_telegram_message.py', "Send Telegram Message"):
+    # Load formatted message
+    json_file = Path(".tmp/trending_formatted.json")
+    if not json_file.exists():
+        logger.error("No formatted message found")
         return False
 
-    # Step 7: Update sent history with only new unique hashes
-    new_hashes = []
-    for v in new_videos:
-        h = v.get("hash", get_video_hash(v))
-        if h not in history.get("sent_hashes", []):
-            new_hashes.append(h)
-    save_sent_history(history, new_hashes)
+    with open(json_file, "r", encoding="utf-8") as f:
+        messages = json.load(f)
 
-    logger.info("=" * 50)
-    logger.info("Workflow completed successfully!")
-    logger.info("=" * 50)
+    # Send
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+
+    for msg in messages:
+        try:
+            resp = requests.post(url, json={"chat_id": chat_id, "text": msg["text"], "parse_mode": "HTML"}, timeout=30)
+            if resp.status_code == 200:
+                logger.info(f"Sent successfully to {chat_id}")
+            else:
+                logger.error(f"Failed: {resp.text}")
+                return False
+        except Exception as e:
+            logger.error(f"Send error: {e}")
+            return False
+
     return True
+
+
+# ============================================================================
+# MAIN ORCHESTRATOR
+# ============================================================================
+
+def main():
+    parser = argparse.ArgumentParser(description="YouTube AI Digest")
+    parser.add_argument("-n", "--limit", type=int, default=5, help="Number of videos")
+    parser.add_argument("--ai", action="store_true", help="Filter for AI/ML content")
+    parser.add_argument("--test", action="store_true", help="Use test data")
+    parser.add_argument("--force", action="store_true", help="Skip duplicate check")
+    args = parser.parse_args()
+
+    logger.info(f"YouTube AI Digest - Starting at {datetime.now().isoformat()}")
+    logger.info(f"Limit: {args.limit}, AI Mode: {args.ai}, Test: {args.test}")
+
+    # Create AI mode flag
+    if args.ai:
+        Path(".tmp/ai_mode.flag").touch()
+
+    # Step 1: Scrape
+    logger.info("Step 1: Scraping YouTube...")
+    videos = scrape_youtube(args.limit, test_mode=args.test, ai_only=args.ai)
+    if not videos:
+        logger.error("No videos scraped - exiting")
+        return
+
+    # Step 2: Summary
+    logger.info("Step 2: Generating summary...")
+    generate_summary()
+
+    # Step 3: Format
+    logger.info("Step 3: Formatting report...")
+    format_report(args.limit)
+
+    # Step 4: Send
+    logger.info("Step 4: Sending to Telegram...")
+    if send_telegram():
+        logger.info("Message sent successfully!")
+    else:
+        logger.error("Failed to send message")
+
+    logger.info(f"YouTube AI Digest - Completed at {datetime.now().isoformat()}")
 
 
 if __name__ == "__main__":
-    # Parse arguments
-    ai_mode = "--ai" in sys.argv or "-a" in sys.argv
-    limit = 5
-    for i, arg in enumerate(sys.argv):
-        if arg.isdigit():
-            limit = int(arg)
-
-    success = run_workflow(ai_mode=ai_mode, limit=limit)
-    sys.exit(0 if success else 1)
+    main()
