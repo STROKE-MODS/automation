@@ -68,7 +68,7 @@ Sample output:
   "total_messages_sent": 5,
   "unique_users": 1,
   "users": {
-    "5170723414": {
+    "your_chat_id": {
       "username": "YourUsername",
       "reports_received": 5
     }

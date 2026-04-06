@@ -130,12 +130,12 @@ python tools/send_telegram_message.py
 
 ## Configuration (.env)
 
-The `.env` file is already configured:
+Create a `.env` file with your API keys:
 
 ```env
-TELEGRAM_BOT_TOKEN=8689535430:AAHxrjkiccCLk6AXWzUsywneBzuc0UTovBI
-TELEGRAM_CHAT_ID=5170723414
-YOUTUBE_API_KEY=AIzaSyBP1BKoqruF9mpHO2JzVoNj3VfKfevlrl0
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_CHAT_ID=your_chat_id_here
+YOUTUBE_API_KEY=your_youtube_api_key_here
 ```
 
 **Security:** `.env` is in `.gitignore` - never committed to git.

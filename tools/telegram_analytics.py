@@ -224,7 +224,7 @@ def format_analytics_report() -> str:
 def main():
     # Check if recording a new report
     if "--report" in sys.argv:
-        chat_id = os.getenv("TELEGRAM_CHAT_ID", "5170723414")
+        chat_id = os.getenv("TELEGRAM_CHAT_ID", "your_chat_id")
         message_count = int(sys.argv[2]) if len(sys.argv) > 2 else 1
         video_count = int(sys.argv[3]) if len(sys.argv) > 3 else 0
         result = record_report_sent(chat_id, message_count, video_count)

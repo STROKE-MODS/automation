@@ -7,7 +7,12 @@
       "Bash(python tools/scrape_youtube_trending.py 20)",
       "Bash(yt-dlp:*)",
       "Bash(curl -s --max-time 10 \"https://pipedapi.kavin.rocks/trending?region=IN\")",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(curl -s https://api.github.com/repos/STROKE-MODS/automation/git/trees/main)",
+      "Bash(gh auth:*)",
+      "Bash(curl:*)",
+      "Bash(gh repo:*)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

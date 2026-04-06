@@ -6,9 +6,9 @@
 2. **Create Railway project**: https://railway.app/new
 3. **Connect GitHub repo**
 4. **Add Environment Variables** in Railway dashboard:
-   - `TELEGRAM_BOT_TOKEN` = 8689535430:AAHxrjkiccCLk6AXWzUsywneBzuc0UTovBI
-   - `TELEGRAM_CHAT_ID` = 5170723414
-   - `YOUTUBE_API_KEY` = AIzaSyBP1BKoqruF9mpHO2JzVoNj3VfKfevlrl0
+   - `TELEGRAM_BOT_TOKEN` = your_bot_token_here
+   - `TELEGRAM_CHAT_ID` = your_chat_id_here
+   - `YOUTUBE_API_KEY` = your_youtube_api_key_here
 
 5. **Deploy** - Click Deploy
 

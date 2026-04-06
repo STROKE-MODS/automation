@@ -41,7 +41,7 @@ def load_ai_summary() -> str:
 
 def check_ai_mode() -> bool:
     """Check if running in AI/Data analytics mode."""
-    return Path(".tmp") / "ai_mode.flag"
+    return (Path(".tmp") / "ai_mode.flag").exists()
 
 
 def format_trending_report(videos: list[dict], max_videos: int = 20) -> list[str]:
@@ -63,14 +63,14 @@ def format_trending_report(videos: list[dict], max_videos: int = 20) -> list[str
     ai_summary = load_ai_summary()
     is_ai_mode = check_ai_mode()
 
-    # Custom header based on mode
+    # Custom header based on mode (using HTML for Telegram)
     if is_ai_mode:
-        header = f"📚 *Best Resources - AI Study & Data Analytics*\n🎯 Top Trending Videos\n📅 {date_str}\n"
+        header = f"📚 <b>Best Resources - AI Study & Data Analytics</b>\n🎯 Top Trending Videos\n📅 {date_str}\n"
     else:
-        header = f"📊 *YouTube Trending India*\n📅 Week of {date_str}\n"
+        header = f"📊 <b>YouTube Trending India</b>\n📅 Week of {date_str}\n"
 
     if ai_summary:
-        header += f"\n💡 *Summary:*\n{ai_summary}\n"
+        header += f"\n💡 <b>Summary:</b>\n{ai_summary}\n"
 
     messages = []
     current_msg = header
@@ -86,7 +86,7 @@ def format_trending_report(videos: list[dict], max_videos: int = 20) -> list[str
 
         # Format each video entry
         entry = (
-            f"\n{i}. *{title}*\n"
+            f"\n{i}. <b>{title}</b>\n"
             f"   📺 {channel} • 👁 {views}\n"
             f"   🔗 {url}"
         )
@@ -99,7 +99,7 @@ def format_trending_report(videos: list[dict], max_videos: int = 20) -> list[str
             current_msg += entry
 
     # Footer
-    current_msg += "\n\n✨ *End of Report*"
+    current_msg += "\n\n✨ <b>End of Report</b>"
     messages.append(current_msg)
 
     return messages

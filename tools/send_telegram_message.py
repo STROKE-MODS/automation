@@ -37,7 +37,7 @@ def send_message(text: str) -> dict:
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text,
-        "parse_mode": "Markdown"
+        "parse_mode": "HTML"
     }
 
     try:
